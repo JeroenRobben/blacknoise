@@ -1,0 +1,26 @@
+networks:
+  wireguard-test:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: wg-test-br
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24
+          gateway: 192.168.100.1
+
+services:
+  boringtun:
+    build:
+      # Build context is targets/ so the Dockerfile can reach shared/
+      context: ..
+      dockerfile: boringtun/Dockerfile
+    container_name: boringtun-hardcoded-target
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ./wg0.conf:/etc/wireguard/wg0.conf:ro
+    networks:
+      wireguard-test:
+        ipv4_address: 192.168.100.10

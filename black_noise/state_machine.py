@@ -5,7 +5,7 @@ from scapy.contrib.wireguard import *
 from scapy.layers.inet import IP
 from scapy.layers.inet6 import IPv6
 
-from wg_primitives import *
+from .primitives import *
 
 
 class InvalidStatePacketError(Exception):
@@ -44,6 +44,36 @@ def get_fixed_cookie() -> bytes:
     return wg_mac(key=b"cookie", data=b"cookie")
 
 
+def create_cookie_reply(pkt: Packet, sender_public_key: bytes) -> tuple[Wireguard, bytes]:
+    """
+    Build a WireguardCookieReply in response to a handshake initiation or response.
+
+    sender_public_key: the static public key of the party sending the cookie reply
+                       (used to derive the encryption key so the receiver can decrypt it).
+
+    Returns (cookie_reply_packet, cookie) where cookie is the value embedded in the
+    reply — callers that later need to verify mac2 can use it with calc_mac_2().
+    """
+    if isinstance(pkt, WireguardInitiation):
+        receiver_index = pkt.sender_index
+    elif isinstance(pkt, WireguardResponse):
+        receiver_index = pkt.sender_index
+    else:
+        raise RuntimeError(f"Cannot create cookie reply for {type(pkt).__name__}")
+
+    cookie = get_fixed_cookie()
+    nonce = bytes(24)
+    key = wg_hash(wg_label_cookie() + sender_public_key)
+
+    inner = WireguardCookieReply()
+    inner.receiver_index = receiver_index
+    inner.nonce = nonce
+    inner.encrypted_cookie = wg_xaead_encrypt(key=key, nonce=nonce, plain_text=cookie,
+                                               auth_text=pkt.mac1)
+
+    return Wireguard(message_type=3) / inner, cookie
+
+
 def parse_ip_pkt(pkt_bytes: bytes) -> Packet:
     version = pkt_bytes[0] >> 4
     match version:
@@ -72,17 +102,21 @@ class WgSecureSession:
 
     session_state = None
 
-    def __init__(self, server_private_key: bytes, preshared_symmetric_key=bytes(32)):
+    def __init__(self, server_private_key: bytes, preshared_symmetric_key=bytes(32),
+                 ephemeral_keypair: tuple[bytes, bytes] | None = None):
         self.session_state = WgStateIdle(self)
         self.local_session_index = random.randint(0, 2 ** 32 - 1)
         self.server_private_key = server_private_key
         self.server_public_key = get_public_key_from_private_key(server_private_key)
         self.preshared_symmetric_key = preshared_symmetric_key
-        self.server_ephemeral_private_key, self.server_ephemeral_public_key = wg_dh_generate()
+        if ephemeral_keypair is not None:
+            self.server_ephemeral_private_key, self.server_ephemeral_public_key = ephemeral_keypair
+        else:
+            self.server_ephemeral_private_key, self.server_ephemeral_public_key = wg_dh_generate()
 
     def handle_packet(self, pkt: Wireguard) -> Optional[Packet]:
-        print(f"handling_packet:")
-        pkt.show()
+        # print(f"handling_packet:")
+        # pkt.show()
         pkt_reply = None
 
         match pkt.payload:
@@ -111,12 +145,12 @@ class WgSecureSession:
             case _:
                 return None
 
-    def init_handshake(self, peer_public_key: bytes) -> Wireguard:
+    def init_handshake(self, peer_public_key: bytes, timestamp: bytes | None = None) -> Wireguard:
         if type(self.session_state) is WgStateIdle:
             self.peer_public_key = peer_public_key
 
             session_state: WgStateIdle = self.session_state
-            self.session_state, pkt_reply = session_state.do_hs_initiation()
+            self.session_state, pkt_reply = session_state.do_hs_initiation(timestamp=timestamp)
             return Wireguard(message_type=1) / pkt_reply
         else:
             raise RuntimeError("init_handshake called when state isn't WgStateIdle")
@@ -166,18 +200,12 @@ class WgStateIdle(WgState):
         self.session.peer_session_index = wg_pkt.sender_index
 
         if self.session.send_cookie and wg_pkt.mac2 == bytes(16):
-            pkt_cookie = WireguardCookieReply()
-            pkt_cookie.receiver_index = wg_pkt.sender_index
-            pkt_cookie.nonce = bytes(24)
-            t = get_fixed_cookie()
-            key = wg_hash(wg_label_cookie() + s_pub_r)
-            pkt_cookie.encrypted_cookie = wg_xaead_encrypt(key=key, nonce=bytes(24), plain_text=t,
-                                                           auth_text=wg_pkt.mac1)
-            return self, pkt_cookie
+            pkt_cookie, _ = create_cookie_reply(wg_pkt, s_pub_r)
+            return self, pkt_cookie.payload
         elif self.session.send_cookie:  # Mac2 set
             if wg_pkt.mac2 != calc_mac_2(wg_pkt, cookie=get_fixed_cookie()):
                 raise ValueError("Invalid mac2")
-            print("Mac2 valid")
+            # print("Mac2 valid")
 
         c_r = wg_hash(wg_construction())
         h_r = wg_hash(c_r + wg_identifier())
@@ -190,7 +218,7 @@ class WgStateIdle(WgState):
         self.session.peer_public_key = s_pub_i
         if calc_mac_1(wg_pkt, s_pub_r) != wg_pkt.mac1:
             raise ValueError("Invalid mac1")
-        print("Mac1 valid")
+        # print("Mac1 valid")
 
         q = self.session.preshared_symmetric_key
 
@@ -205,7 +233,7 @@ class WgStateIdle(WgState):
         pkt_reply.sender_index = self.session.local_session_index
         pkt_reply.receiver_index = self.session.peer_session_index
 
-        e_priv_r, e_pub_r = wg_dh_generate()
+        e_priv_r, e_pub_r = self.session.server_ephemeral_private_key, self.session.server_ephemeral_public_key
         c_r = wg_kdf(c_r, e_pub_r, 1)
         pkt_reply.unencrypted_ephemeral = e_pub_r
         h_r = wg_hash(h_r + e_pub_r)
@@ -217,7 +245,7 @@ class WgStateIdle(WgState):
         h_r = wg_hash(h_r + pkt_reply.encrypted_nothing)
 
         t_recv_r, t_send_r = wg_kdf(c_r, b'', 2)
-        print(f't_recv_r: {t_recv_r}, t_send_r: {t_send_r}')
+        # print(f't_recv_r: {t_recv_r}, t_send_r: {t_send_r}')
 
         pkt_reply.mac1 = calc_mac_1(pkt_reply, self.session.peer_public_key)
 
@@ -225,7 +253,7 @@ class WgStateIdle(WgState):
                                         wg_pkt_response=pkt_reply)
         return new_state, pkt_reply
 
-    def do_hs_initiation(self) -> tuple[WgState, WireguardInitiation]:
+    def do_hs_initiation(self, timestamp: bytes | None = None) -> tuple[WgState, WireguardInitiation]:
         s_pub_r = self.session.peer_public_key
         s_pub_i = self.session.server_public_key
         s_priv_i = self.session.server_private_key
@@ -245,7 +273,7 @@ class WgStateIdle(WgState):
         pkt.encrypted_static = wg_aead_encrypt(k, 0, s_pub_i, h_i)
         h_i = wg_hash(h_i + pkt.encrypted_static)
         c_i, k = wg_kdf(c_i, wg_dh(s_priv_i, s_pub_r), 2)
-        pkt.encrypted_timestamp = wg_aead_encrypt(k, 0, wg_timestamp(), h_i)
+        pkt.encrypted_timestamp = wg_aead_encrypt(k, 0, timestamp if timestamp is not None else wg_timestamp(), h_i)
         h_i = wg_hash(h_i + pkt.encrypted_timestamp)
 
         pkt.mac1 = calc_mac_1(pkt, self.session.peer_public_key)
@@ -273,22 +301,16 @@ class WgStateInitSent(WgState):
         s_priv_i = self.session.server_private_key
 
         if self.session.send_cookie and wg_pkt.mac2 == bytes(16):
-            pkt_cookie = WireguardCookieReply()
-            pkt_cookie.receiver_index = wg_pkt.sender_index
-            pkt_cookie.nonce = bytes(24)
-            t = get_fixed_cookie()
-            key = wg_hash(wg_label_cookie() + s_pub_i)
-            pkt_cookie.encrypted_cookie = wg_xaead_encrypt(key=key, nonce=bytes(24),
-                                                           plain_text=t, auth_text=wg_pkt.mac1)
-            return self, pkt_cookie
+            pkt_cookie, _ = create_cookie_reply(wg_pkt, s_pub_i)
+            return self, pkt_cookie.payload
         elif self.session.send_cookie:  # Mac2 set
             if wg_pkt.mac2 != calc_mac_2(wg_pkt, cookie=get_fixed_cookie()):
                 raise ValueError("Invalid mac2")
-            print("Mac2 valid")
+            # print("Mac2 valid")
 
         if calc_mac_1(wg_pkt, self.session.server_public_key) != wg_pkt.mac1:
             raise ValueError("Invalid mac1")
-        print("Mac1 valid")
+        # print("Mac1 valid")
 
         e_pub_r = wg_pkt.unencrypted_ephemeral
         c_i = wg_kdf(c_i, e_pub_r, 1)
@@ -305,8 +327,8 @@ class WgStateInitSent(WgState):
         t_send_i, t_recv_i = wg_kdf(c_i, b'', 2)
 
         self.session.peer_session_index = wg_pkt.sender_index
-        new_state = WgStateActiveInitiator(session=self.session, t_recv_i=t_recv_i, t_send_i=t_send_i, ctr_send=0,
-                                           ctr_recv=0)
+        new_state = WgStateActiveInitiator(session=self.session, t_recv_i=t_recv_i, t_send_i=t_send_i, ctr_send=1,
+                                           ctr_recv=1)
 
         pkt_keepalive = WireguardTransport()
         pkt_keepalive.receiver_index = wg_pkt.sender_index
@@ -359,7 +381,7 @@ class WgStateResponseSent(WgState):
 
         if len(decrypted_packet_bytes) != 0:
             inner_pkt = parse_ip_pkt(decrypted_packet_bytes)
-            print(f"Inner packet: {inner_pkt.summary()}")
+            # print(f"Inner packet: {inner_pkt.summary()}")
             return new_state, inner_pkt
         return new_state, None
 
@@ -380,7 +402,7 @@ class WgStateActiveResponder(WgState):
 
         if len(decrypted_packet_bytes) != 0:
             inner_pkt = parse_ip_pkt(decrypted_packet_bytes)
-            print(f"Inner packet: {inner_pkt.summary()}")
+            # print(f"Inner packet: {inner_pkt.summary()}")
             return self, inner_pkt
 
         return self, None
@@ -413,7 +435,7 @@ class WgStateActiveInitiator(WgState):
 
         if len(decrypted_packet_bytes) != 0:
             inner_pkt = parse_ip_pkt(decrypted_packet_bytes)
-            print(f"Inner packet: {inner_pkt.summary()}")
+            # print(f"Inner packet: {inner_pkt.summary()}")
             return self, inner_pkt
 
         return self, None

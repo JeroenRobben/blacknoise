@@ -1,5 +1,7 @@
 # Timers
 
+> **Work in progress.** This document serves as a working note and is incomplete. It should not be relied upon when implementing WireGuard.
+
 ## Initiator-only timers
 
 1. retransmitHandshake (6.2, 6.4)
@@ -20,6 +22,7 @@
        - Stop handshake attempts, i.e., stop `retransmitHandshake` timer
         
    - **Note:** Some implementations replace this timer with a counter that limits the number of handshake retries. The maximum number of handshake attempts is then `RekeyAttemptTime / RekeyTimeout`.
+   - **wireguard-go:** Uses a counter (`handshakeAttempts`, `atomic.Uint32`) instead of a timer. The limit is `MaxTimerHandshakes = RekeyAttemptTime / RekeyTimeout = 18`. The counter is incremented on each retry in `expiredRetransmitHandshake` and checked before sending a new initiation (`device/timers.go`).
 
 ## Shared timers
 
@@ -52,13 +55,23 @@
     - **Duration:** 120 seconds
     - **Stop:** /
     - **Action:** Clear stored cookie for this peer
-        
+    - **wireguard-go:** No explicit timer. Instead, a `cookieSet` timestamp is stored and `time.Since(cookieSet) > CookieRefreshTime` is checked lazily on use (`device/cookie.go`).
+
 5. **renewCookieSecretValue**
     - **Associated with:** WG interface
     - **Start:** System start
     - **Duration:** 120 seconds
     - **Stop:** Never
     - **Action:** Restart timer, renew cookie secret value (R_m)
+    - **wireguard-go:** No explicit timer. Instead, a `secretSet` timestamp is stored and `time.Since(secretSet) > CookieRefreshTime` is checked lazily on use (`device/cookie.go`).
+
+6. **persistentKeepalive**
+    - **Associated with:** Peer
+    - **Start:** Any authenticated packet (data, keepalive, or handshake) sent or received, if a persistent keepalive interval is configured
+    - **Duration:** Configured `persistentKeepaliveInterval` (user-defined, in seconds)
+    - **Stop:** /
+    - **Action:** Send keepalive message, restart timer
+    - **Note:** This timer is not described in the WireGuard white paper. It is a practical extension present in implementations to keep stateful NAT/firewall mappings alive.
 
 ## Counters
 

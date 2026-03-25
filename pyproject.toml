@@ -1,7 +1,7 @@
 [project]
-name = "wggauge"
+name = "black-noise"
 version = "0.1.0"
-description = "Framework for security testing of Wireguard implementations"
+description = "Framework for security testing of WireGuard implementations"
 requires-python = ">=3.13"
 dependencies = [
     "pwntools>=4.15.0",

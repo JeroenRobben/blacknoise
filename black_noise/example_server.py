@@ -7,8 +7,8 @@ from scapy.contrib.wireguard import *
 from scapy.layers.inet import IP
 from scapy.layers.inet6 import IPv6
 
-from wg_primitives import *
-from wg_state_machine import WgSecureSession
+from .primitives import *
+from .state_machine import WgSecureSession
 
 
 class WgPeer:
@@ -17,7 +17,8 @@ class WgPeer:
     allowed_subnets: list[ipaddress.IPv4Network | ipaddress.IPv6Network]
     session: WgSecureSession = None
 
-    def __init__(self, peer_public_key: bytes, remote_ip: str, remote_port: int, allowed_subnets_str: list[str]):
+    def __init__(self, peer_public_key: bytes, remote_ip: str, remote_port: int, allowed_subnets_str: list[str],
+                 preshared_key: bytes | None = None):
         ip = ipaddress.ip_address(remote_ip)
         if isinstance(ip, ipaddress.IPv4Address):
             ip_str = str(ip.ipv6_mapped)
@@ -31,6 +32,11 @@ class WgPeer:
         self.peer_public_key = peer_public_key
         self.remote_ip = ip_str
         self.remote_port = remote_port
+        if preshared_key is not None:
+            self.preshared_symmetric_key = preshared_key
+
+    def is_session_active(self) -> bool:
+        return self.session is not None and self.session.can_encapsulate_transport_data()
 
     def __str__(self):
         return f"Peer: public_key={self.peer_public_key}, preshared_symmetric_key={self.preshared_symmetric_key}, allowed_subnets={self.allowed_subnets}"
@@ -90,9 +96,17 @@ class WgServer:
         print(f"Writing to tun: {pkt.summary()}")
         # os.write(self.tun_fd, bytes(pkt))
 
+    def stop(self):
+        self._stopped = True
+        self.sock.close()
+
     def recv_loop(self):
-        while True:
-            readable, _, _ = select.select([self.sock, self.tun_fd], [], [])
+        self._stopped = False
+        while not self._stopped:
+            try:
+                readable, _, _ = select.select([self.sock, self.tun_fd], [], [])
+            except OSError:
+                break  # socket was closed by stop()
 
             for fd in readable:
                 if fd is self.sock:
@@ -173,3 +187,56 @@ class WgServer:
             raise RuntimeError(f"Peer {peer} not yet added to server")
         reply = peer.init_handshake(server_private_key=self.server_private_key)
         self.send_packet_to_peer(remote_ip=peer.remote_ip, remote_port=peer.remote_port, pkt=reply)
+
+
+def test_self():
+    server_private_key = base64.b64decode("wEGkbr9eQnkHsL4vF6OwS7+l4O0z0cyOrc/9/T+p5Fs=")
+    peer_private_key = base64.b64decode("wEGkbr9eQnkHsL4vF6OwS7+l4O0z0cyOrc/9/T+p5Fs=")
+    peer_public_key = get_public_key_from_private_key(peer_private_key)
+
+    server_1 = WgServer(server_private_key=server_private_key, server_port=51820, tun_ipv4_with_prefix="10.8.0.1/32",
+                        tun_ipv6_with_prefix="fd42::1/128", tun_name="tun-wg-0")
+    server_2 = WgServer(server_private_key=server_private_key, server_port=51821, tun_ipv4_with_prefix="10.8.0.2/32",
+                        tun_ipv6_with_prefix="fd42::2/128", tun_name="tun-wg-1")
+
+    peer_server_1 = WgPeer(peer_public_key=peer_public_key, remote_ip="127.0.0.1", remote_port=51820,
+                           allowed_subnets_str=["10.0.2.0/24"])
+    peer_server_2 = WgPeer(peer_public_key=peer_public_key, remote_ip="127.0.0.1", remote_port=51821,
+                           allowed_subnets_str=["10.0.3.0/24"])
+    server_1.add_peer(peer_server_2)
+    server_2.add_peer(peer_server_1)
+
+    server_1.init_handshake(peer_server_2)
+
+    thread1 = threading.Thread(target=server_1.recv_loop)
+    thread2 = threading.Thread(target=server_2.recv_loop)
+
+    thread1.start()
+    thread2.start()
+
+    thread1.join()
+    thread2.join()
+
+
+def main():
+    server_private_key = base64.b64decode("GNLngngd39Ze/IARYa09ae0tKFBEF6OWKxXqOARbIU0=")
+    peer_public_key = base64.b64decode("n3K7CddVLicgdqJYmSNEbBUXwe93h8hlz3tPpRhCfEI=")
+
+    server_public_key = get_public_key_from_private_key(server_private_key)
+    print(f"Server public key: {base64.b64encode(server_public_key)}")
+
+    server = WgServer(server_private_key=server_private_key, server_port=51820, tun_ipv4_with_prefix="10.8.0.1/32",
+                      tun_ipv6_with_prefix="fd42::1/128", tun_name="tun-wg-0")
+
+    peer = WgPeer(peer_public_key=peer_public_key, remote_ip="127.0.0.1", remote_port=51821,
+                  allowed_subnets_str=["10.0.3.0/24"])
+    server.add_peer(peer)
+
+    server.init_handshake(peer)
+
+    server.recv_loop()
+
+
+if __name__ == "__main__":
+    main()
+    # test_self()
