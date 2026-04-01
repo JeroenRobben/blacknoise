@@ -24,6 +24,7 @@ from black_noise.test_cases.test_handshake_init_encrypted_timestamp_tag_verifica
     TestHandshakeInitEncryptedTimestampTagVerification
 from black_noise.test_cases.test_handshake_init_ephemeral_key_verification import TestHandshakeInitEphemeralKeyVerification
 from black_noise.test_cases.test_handshake_init_timestamp_verification import TestHandshakeInitTimestampVerification
+from black_noise.test_cases.test_handshake_init_timestamp_overflow_nanoseconds import TestHandshakeInitTimestampOverflowNanoseconds
 from black_noise.test_cases.test_handshake_initiator import TestHandshakeInitiation
 from black_noise.test_cases.test_handshake_responder import TestHandshakeResponder
 from black_noise.test_cases.test_handshake_response_encrypted_nothing_tag_verification import \
@@ -71,6 +72,7 @@ def main():
         TestHandshakeInitEncryptedTimestampTagVerification(),
         TestHandshakeInitMac1Verification(),
         TestHandshakeInitTimestampVerification(),
+        TestHandshakeInitTimestampOverflowNanoseconds(),
         TestHandshakeInitEphemeralKeyVerification(),
         TestHandshakeInitEncryptedStaticKeyVerification(),
         TestHandshakeResponseEphemeralAllZeros(),
