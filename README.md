@@ -14,7 +14,7 @@ Testing is black-box: the framework behaves as a WireGuard peer and bugs are det
 uv sync
 
 # Run tests against a target
-sudo uv run run_tests.py wireguard-go
+sudo uv run run_tests.py wireguard-go-docker-hardcoded-endpoint
 ```
 
 The framework itself does not require special privileges, but `reset.sh` often does — for example to configure network interfaces or manage containers. Running with `sudo` ensures `reset.sh` has the necessary permissions.
