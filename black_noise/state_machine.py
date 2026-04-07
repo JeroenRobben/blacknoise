@@ -343,7 +343,7 @@ class WgStateInitSent(WgState):
         encrypted_cookie = wg_cookie_reply.encrypted_cookie
         key = wg_hash(wg_label_cookie() + self.session.peer_public_key)
         cookie = wg_xaead_decrypt(key=key, nonce=nonce, cipher_text_with_tag=encrypted_cookie,
-                                  auth_text=bytes(Wireguard(message_type=1) / self.wg_pkt_initiation))
+                                  auth_text=bytes(self.wg_pkt_initiation.mac1))
 
         reply_pkt = self.wg_pkt_initiation
         reply_pkt.mac2 = calc_mac_2(pkt=reply_pkt, cookie=cookie)
@@ -363,7 +363,7 @@ class WgStateResponseSent(WgState):
         encrypted_cookie = wg_cookie_reply.encrypted_cookie
         key = wg_hash(wg_label_cookie() + self.session.peer_public_key)
         cookie = wg_xaead_decrypt(key=key, nonce=nonce, cipher_text_with_tag=encrypted_cookie,
-                                  auth_text=bytes(Wireguard(message_type=2) / self.wg_pkt_response))
+                                  auth_text=bytes(self.wg_pkt_response.mac1))
 
         reply_pkt = self.wg_pkt_response
         reply_pkt.mac2 = calc_mac_2(pkt=reply_pkt, cookie=cookie)

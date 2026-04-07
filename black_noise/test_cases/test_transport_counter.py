@@ -86,7 +86,7 @@ class TestTransportCounter(AbstractTestCase):
 
         # 2. Replay counter 1 — rejected.
         sock.sendto(self._make_transport(session, 1, target, b"step2"), addr)
-        if report := self._expect_silence(sock, target, "counter 1 replay"):
+        if report := self._expect_silence(sock, target, "counter 1 replay", ignore_keepalives=True):
             return report
 
         # 3. Counter 3 (out of order, skipping 2) — accepted.
@@ -101,7 +101,7 @@ class TestTransportCounter(AbstractTestCase):
 
         # 5. Replay counter 2 — rejected.
         sock.sendto(self._make_transport(session, 2, target, b"step5"), addr)
-        if report := self._expect_silence(sock, target, "counter 2 replay"):
+        if report := self._expect_silence(sock, target, "counter 2 replay", ignore_keepalives=True):
             return report
 
         # 6. High counter (WINDOW_SIZE + 10) — accepted; advances window so
@@ -114,7 +114,7 @@ class TestTransportCounter(AbstractTestCase):
         # 7. Counter 4 — unseen, but below the window lower bound (high - WINDOW_SIZE + 1 = 11),
         #    so it must be rejected as outside the window.
         sock.sendto(self._make_transport(session, 4, target, b"step7"), addr)
-        if report := self._expect_silence(sock, target, "counter 4 (outside window, never seen before)"):
+        if report := self._expect_silence(sock, target, "counter 4 (outside window, never seen before)", ignore_keepalives=True):
             return report
 
         # 8. Counter high + 1 — accepted, confirming the target still works.

@@ -77,14 +77,14 @@ class TestTransportCryptokeyRouting(AbstractTestCase):
         # 2. Target's own tunnel IP — dropped
         self._send_echo(sock, session, target, target.target_wg_ip, b"target_ip")
         if report := self._expect_silence(sock, target,
-                                          f"src = target_wg_ip ({target.target_wg_ip})"):
+                                          f"src = target_wg_ip ({target.target_wg_ip})", ignore_keepalives=True):
             return report
 
         # 3. server_wg_ip + 1 — adjacent address, dropped
         next_ip = server_ip + 1
         self._send_echo(sock, session, target, str(next_ip), b"next_ip")
         if report := self._expect_silence(sock, target,
-                                          f"src = server_wg_ip + 1 ({next_ip})"):
+                                          f"src = server_wg_ip + 1 ({next_ip})", ignore_keepalives=True):
             return report
 
         # 4. Same /24 subnet (.100), dropped
@@ -95,19 +95,19 @@ class TestTransportCryptokeyRouting(AbstractTestCase):
             subnet_100 = ipaddress.IPv4Address((int(server_ip) & 0xFFFFFF00) | 102)
         self._send_echo(sock, session, target, str(subnet_100), b"subnet_ip")
         if report := self._expect_silence(sock, target,
-                                          f"src = same /24 ({subnet_100})"):
+                                          f"src = same /24 ({subnet_100})", ignore_keepalives=True):
             return report
 
         # 5. Completely different subnet — dropped
         self._send_echo(sock, session, target, "10.20.30.40", b"other_subnet")
         if report := self._expect_silence(sock, target,
-                                          "src = 10.20.30.40 (different subnet)"):
+                                          "src = 10.20.30.40 (different subnet)", ignore_keepalives=True):
             return report
 
         # 6. Loopback source, normal destination — dropped
         self._send_echo(sock, session, target, "127.0.0.1", b"loopback_src")
         if report := self._expect_silence(sock, target,
-                                          "src = 127.0.0.1, dst = target_wg_ip"):
+                                          "src = 127.0.0.1, dst = target_wg_ip", ignore_keepalives=True):
             return report
 
         # 7. Loopback source and destination — dropped
@@ -119,7 +119,7 @@ class TestTransportCryptokeyRouting(AbstractTestCase):
         sock.sendto(bytes(session.encapsulate_transport_data(inner)),
                     (target.target_physical_ip, target.target_wg_port))
         if report := self._expect_silence(sock, target,
-                                          "src = 127.0.0.1, dst = 127.0.0.1"):
+                                          "src = 127.0.0.1, dst = 127.0.0.1", ignore_keepalives=True):
             return report
 
         # 8. Valid source IP again — confirm target still processes correct packets

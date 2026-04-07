@@ -23,7 +23,7 @@ from scapy.contrib.wireguard import Wireguard, WireguardTransport
 from scapy.layers.inet import IP, UDP
 from scapy.packet import Padding, Raw
 
-from black_noise.AbstractTest import AbstractTestCase
+from black_noise.AbstractTest import AbstractTestCase, _is_keepalive
 from black_noise.TestResult import TestReport
 from black_noise.TestTarget import TestTarget
 from black_noise.state_machine import WgStateActiveInitiator
@@ -67,10 +67,13 @@ class TestTransportPadding(AbstractTestCase):
             sock.sendto(bytes(session.encapsulate_transport_data(bytes(pkt_echo))),
                         (target.target_physical_ip, target.target_wg_port))
 
-            try:
-                pkt_bytes, _ = sock.recvfrom(65535)
-            except socket.timeout:
-                return self._fail(target, f"No echo reply for payload size {size}")
+            while True:
+                try:
+                    pkt_bytes, _ = sock.recvfrom(65535)
+                except socket.timeout:
+                    return self._fail(target, f"No echo reply for payload size {size}")
+                if not _is_keepalive(pkt_bytes):
+                    break
 
             wg_pkt = Wireguard(pkt_bytes)
             enc_len = len(wg_pkt[WireguardTransport].encrypted_encapsulated_packet)

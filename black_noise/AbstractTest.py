@@ -1,13 +1,22 @@
 import socket
 from abc import abstractmethod, ABC
 
-from scapy.contrib.wireguard import Wireguard
+from scapy.contrib.wireguard import Wireguard, WireguardTransport
 from scapy.layers.inet import IP, UDP
 from scapy.packet import Raw
 
 from black_noise.TestResult import TestReport, TestStatus
 from black_noise.TestTarget import TestTarget
 from black_noise.state_machine import WgSecureSession, WgStateActiveInitiator
+
+
+def _is_keepalive(pkt_bytes: bytes) -> bool:
+    """Return True if pkt_bytes is a WireGuard transport keepalive (empty plaintext)."""
+    try:
+        pkt = Wireguard(pkt_bytes)
+        return pkt.message_type == 4 and len(pkt[WireguardTransport].encrypted_encapsulated_packet) == 16
+    except Exception:
+        return False
 
 
 class AbstractTestCase(ABC):
@@ -88,13 +97,15 @@ class AbstractTestCase(ABC):
         sock.sendto(bytes(session.encapsulate_transport_data(bytes(pkt_echo))),
                     (target.target_physical_ip, target.target_wg_port))
 
-        try:
-            pkt_bytes, _ = sock.recvfrom(65535)
-        except socket.timeout:
-            return self._fail(target, "Target did not send an echo reply through the tunnel")
+        echo_reply = None
+        while echo_reply is None:
+            try:
+                pkt_bytes, _ = sock.recvfrom(65535)
+            except socket.timeout:
+                return self._fail(target, "Target did not send an echo reply through the tunnel")
+            echo_reply = session.handle_packet(Wireguard(pkt_bytes))
 
-        echo_reply = session.handle_packet(Wireguard(pkt_bytes))
-        if echo_reply is None or not echo_reply.haslayer(Raw) or bytes(echo_reply[Raw].load) != self.name.encode():
+        if not echo_reply.haslayer(Raw) or bytes(echo_reply[Raw].load) != self.name.encode():
             return self._fail(target, f"Echo reply payload mismatch: {echo_reply!r}")
 
         return None
@@ -143,30 +154,44 @@ class AbstractTestCase(ABC):
 
     def _expect_reply(self, sock: socket.socket, session, target: TestTarget,
                       expected: bytes, label: str) -> TestReport | None:
-        """Receive one transport packet and verify its decrypted payload matches expected.
+        """Receive transport packets until a non-keepalive arrives, then verify its payload.
+
+        Keepalives (empty transport packets) are silently skipped. The socket timeout
+        applies to each individual receive, so a stream of keepalives will eventually
+        time out and return a failure.
 
         Returns None on success, or a fail TestReport so the caller can do:
             if report := self._expect_reply(...): return report
         """
-        try:
-            pkt_bytes, _ = sock.recvfrom(65535)
-        except socket.timeout:
-            return self._fail(target, f"{label}: expected echo reply but got none")
-        result = session.handle_packet(Wireguard(pkt_bytes))
-        if result is None or not result.haslayer(Raw) or bytes(result[Raw].load) != expected:
+        result = None
+        while result is None:
+            try:
+                pkt_bytes, _ = sock.recvfrom(65535)
+            except socket.timeout:
+                return self._fail(target, f"{label}: expected echo reply but got none")
+            result = session.handle_packet(Wireguard(pkt_bytes))
+        if not result.haslayer(Raw) or bytes(result[Raw].load) != expected:
             return self._fail(target, f"{label}: payload mismatch (got {result!r})")
         return None
 
-    def _expect_silence(self, sock: socket.socket, target: TestTarget, label: str) -> TestReport | None:
-        """Assert that no packet arrives within the socket timeout.
+    def _expect_silence(self, sock: socket.socket, target: TestTarget, label: str,
+                        ignore_keepalives: bool = False) -> TestReport | None:
+        """Assert that no (non-keepalive) packet arrives within the socket timeout.
+
+        When ignore_keepalives=True, WireGuard transport keepalives are silently skipped
+        and the wait continues. Any other packet causes a failure. Use this when the target
+        has an active session and may legitimately send keepalives unrelated to the probe.
 
         Returns None if silent (expected), or a fail TestReport if a packet arrives.
         """
-        try:
-            sock.recvfrom(65535)
+        while True:
+            try:
+                pkt_bytes, _ = sock.recvfrom(65535)
+            except socket.timeout:
+                return None
+            if ignore_keepalives and _is_keepalive(pkt_bytes):
+                continue
             return self._fail(target, f"{label}: expected silence but got a reply")
-        except socket.timeout:
-            return None
 
     def _pass(self, target: TestTarget, message: str = "") -> TestReport:
         for sock in self._socks:
