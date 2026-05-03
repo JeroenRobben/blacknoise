@@ -47,7 +47,7 @@ class TestRoamingResponder(AbstractTestCase):
         if response is None:
             return self._fail(target, "Failed to process handshake initiation")
 
-        # Send the response from sock2 (server_physical_ip_2) — this is the roam.
+        # Send the response from sock2 (server_physical_ip_2) , this is the roam.
         sock2.sendto(bytes(response), target_addr)
 
         # Expect the keepalive / echo reply to arrive on sock2.
@@ -55,18 +55,18 @@ class TestRoamingResponder(AbstractTestCase):
         try:
             pkt_bytes, _ = sock2.recvfrom(65535)
         except socket.timeout:
-            # Nothing on sock2 — check if the target mistakenly replied to sock1.
+            # Nothing on sock2 , check if the target mistakenly replied to sock1.
             sock1.settimeout(0.5)
             try:
                 sock1.recvfrom(65535)
-                return self._fail(target, "Target sent post-handshake packet to server_physical_ip_1 instead of server_physical_ip_2 — roaming not supported")
+                return self._fail(target, "Target sent post-handshake packet to server_physical_ip_1 instead of server_physical_ip_2 , roaming not supported")
             except socket.timeout:
                 return self._fail(target, "Did not receive any packet after sending response from server_physical_ip_2")
 
         first_result = session.handle_packet(Wireguard(pkt_bytes))
 
         if first_result is None:
-            # Keepalive — wait for the echo reply, also on sock2.
+            # Keepalive , wait for the echo reply, also on sock2.
             try:
                 pkt_bytes, _ = sock2.recvfrom(65535)
             except socket.timeout:

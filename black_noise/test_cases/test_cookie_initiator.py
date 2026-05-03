@@ -54,13 +54,13 @@ class TestCookieInitiator(AbstractTestCase):
         cookie_reply_pkt, our_cookie = create_cookie_reply(response_pkt, session.server_public_key)
         sock.sendto(bytes(cookie_reply_pkt), target_addr)
 
-        # Step 4: Wait — target must not send anything during the silence window.
+        # Step 4: Wait , target must not send anything during the silence window.
         sock.settimeout(SILENCE_WINDOW)
         try:
             pkt_bytes, _ = sock.recvfrom(65535)
             pkt = Wireguard(pkt_bytes)
             if isinstance(pkt.payload, WireguardResponse):
-                return self._fail(target, "Target resent the handshake response after receiving cookie reply — should stay silent")
+                return self._fail(target, "Target resent the handshake response after receiving cookie reply , should stay silent")
             return self._fail(target, f"Target sent unexpected packet during silence window: {pkt.payload.__class__.__name__}")
         except socket.timeout:
             pass  # expected
@@ -71,7 +71,7 @@ class TestCookieInitiator(AbstractTestCase):
         sock.settimeout(5.0)
         sock.sendto(bytes(init_pkt2), (target.target_physical_ip, target.target_wg_port))
 
-        # Step 6: Receive the new response — it must carry a valid mac2.
+        # Step 6: Receive the new response , it must carry a valid mac2.
         try:
             pkt_bytes, target_addr = sock.recvfrom(65535)
         except socket.timeout:
@@ -84,7 +84,7 @@ class TestCookieInitiator(AbstractTestCase):
         response2_pkt = response2.payload
 
         if response2_pkt.mac2 == bytes(16):
-            return self._fail(target, "Response to second initiation has mac2=0 — target did not use the cookie")
+            return self._fail(target, "Response to second initiation has mac2=0 , target did not use the cookie")
 
         expected_mac2 = calc_mac_2(response2_pkt, our_cookie)
         if response2_pkt.mac2 != expected_mac2:

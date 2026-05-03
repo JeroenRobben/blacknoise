@@ -36,11 +36,11 @@ Receiving (+ handling) cookies in `responseSent` state (thus cookies sent by the
 ## Receiving data packet
 
 1. UDP transport data packet is received.
-2. Validate packet — drop packet if invalid:
+2. Validate packet , drop packet if invalid:
     - Associated with secure session?
     - Message counter valid?
     - Authentication and decryption successful with session's receiving symmetric key?
-3. Validate session — drop packet if invalid:
+3. Validate session , drop packet if invalid:
     - Session's receive counter < `RejectAfterMessages`
     - `SessionAge` < `RejectAfterTime`
 4. Update timers:

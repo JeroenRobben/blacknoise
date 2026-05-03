@@ -3,7 +3,7 @@ Test: verify that the target rejects transport packets on a session that has
 exceeded REJECT-AFTER-TIME (180 seconds).
 
 We act as the initiator. The target is the responder and must not send
-handshake initiations — opportunistic re-keying is the initiator's
+handshake initiations , opportunistic re-keying is the initiator's
 responsibility. If the target sends a handshake initiation at any point the
 test fails immediately.
 
@@ -12,8 +12,8 @@ the tunnel once per second until echo requests time out. We then verify that
 the session was rejected within the expected window around REJECT-AFTER-TIME.
 
 Timeline:
-  0 s     — session established
-  ~180 s  — target stops accepting transport packets (REJECT-AFTER-TIME);
+  0 s     , session established
+  ~180 s  , target stops accepting transport packets (REJECT-AFTER-TIME);
              our echo requests time out
 """
 import socket

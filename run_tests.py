@@ -5,8 +5,7 @@ Usage:
     python run_tests.py <target>
 
     <target> is the name of a subdirectory under targets/, e.g.:
-        python run_tests.py wireguard-go-docker-no-endpoint
-        python run_tests.py wireguard-go-docker-hardcoded-endpoint
+        python run_tests.py wireguard-go-docker
 
 """
 import argparse
@@ -120,16 +119,8 @@ def load_target(target_dir: str):
     return module.target
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run the WireGuard test suite against a target.")
-    parser.add_argument("target", help="Target directory name under targets/, e.g. wireguard-go-docker-hardcoded-endpoint")
-    parser.add_argument("--skip-config-checks", action="store_true",
-                        help="Skip pre-flight config checks and run tests immediately")
-    args = parser.parse_args()
-
-    target = load_target(args.target)
-
-    tests = [
+def build_tests():
+    return [
         TestHandshakeInitiation(),
         TestHandshakeResponder(),
         TestCookieInitiator(),
@@ -161,12 +152,47 @@ def main():
         TestUnknownMessageType(),
     ]
 
-    if not args.skip_config_checks and not check_config(target):
-        print("Config checks failed, fix the issues above before running tests.")
-        sys.exit(1)
 
-    runner = TestRunner(target=target, tests=tests)
+def run_one(target_dir: str, args) -> bool:
+    print()
+    print("#" * 60)
+    print(f"# Running tests for target: {target_dir}")
+    print("#" * 60)
+
+    try:
+        target = load_target(target_dir)
+    except Exception as e:
+        print(f"[ ERROR ] could not load target {target_dir}: {e}")
+        return False
+
+    if not args.skip_config_checks and not check_config(target):
+        print(f"Config checks failed for {target_dir}, skipping.")
+        return False
+
+    runner = TestRunner(target=target, tests=build_tests(),
+                        results_dir=args.results_dir,
+                        capture_pcap=args.record_pcap)
     runner.run_all()
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run the WireGuard test suite against a target.")
+    parser.add_argument("target", nargs="?",
+                        help="Target directory name under targets/, e.g. wireguard-go-docker-hardcoded-endpoint")
+    parser.add_argument("--skip-config-checks", action="store_true",
+                        help="Skip pre-flight config checks and run tests immediately")
+    parser.add_argument("--results-dir", default="results",
+                        help="Directory to write results.csv and per-test pcap files (default: results)")
+    parser.add_argument("--record-pcap", action="store_true",
+                        help="Record a pcap file for each test")
+    args = parser.parse_args()
+
+    if not args.target:
+        parser.error("target is required")
+
+    ok = run_one(args.target, args)
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ class TestRoamingCookieResponder(AbstractTestCase):
         if cookie_reply is None or not isinstance(cookie_reply.payload, WireguardCookieReply):
             return self._fail(target, "Expected to send a cookie reply but state machine returned something else")
 
-        # Send the cookie reply from sock2 — this is the roam.
+        # Send the cookie reply from sock2 , this is the roam.
         sock2.sendto(bytes(cookie_reply), target_addr)
 
         # Expect the retransmitted initiation to arrive on sock2.
@@ -63,7 +63,7 @@ class TestRoamingCookieResponder(AbstractTestCase):
             sock1.settimeout(0.5)
             try:
                 sock1.recvfrom(65535)
-                return self._fail(target, "Target retransmitted initiation to server_physical_ip_1 instead of server_physical_ip_2 — roaming with cookie reply not supported")
+                return self._fail(target, "Target retransmitted initiation to server_physical_ip_1 instead of server_physical_ip_2 , roaming with cookie reply not supported")
             except socket.timeout:
                 return self._fail(target, f"Target did not retransmit initiation within {RECV_TIMEOUT}s after receiving cookie reply")
 
@@ -72,7 +72,7 @@ class TestRoamingCookieResponder(AbstractTestCase):
             return self._fail(target, f"Expected retransmitted initiation, got {retransmit.payload.__class__.__name__}")
 
         if retransmit.payload.mac2 == bytes(16):
-            return self._fail(target, "Retransmitted initiation has mac2=0 — target did not use the cookie")
+            return self._fail(target, "Retransmitted initiation has mac2=0 , target did not use the cookie")
 
         # Process the retransmit and send the handshake response from sock2.
         try:
@@ -93,14 +93,14 @@ class TestRoamingCookieResponder(AbstractTestCase):
             sock1.settimeout(0.5)
             try:
                 sock1.recvfrom(65535)
-                return self._fail(target, "Target sent post-handshake packet to server_physical_ip_1 instead of server_physical_ip_2 — roaming not supported")
+                return self._fail(target, "Target sent post-handshake packet to server_physical_ip_1 instead of server_physical_ip_2 , roaming not supported")
             except socket.timeout:
                 return self._fail(target, "Did not receive any packet after handshake response")
 
         first_result = session.handle_packet(Wireguard(pkt_bytes))
 
         if first_result is None:
-            # Keepalive — wait for the echo reply on sock2.
+            # Keepalive , wait for the echo reply on sock2.
             try:
                 pkt_bytes, _ = sock2.recvfrom(65535)
             except socket.timeout:

@@ -3,7 +3,7 @@ Test: verify that the target correctly validates mac1 in handshake initiation pa
 
 We send two initiations:
   1. A structurally valid initiation with a corrupted mac1 (all-zero).
-     The target must silently drop it — no response should arrive.
+     The target must silently drop it , no response should arrive.
   2. A correct initiation immediately after.
      The target must respond and complete the handshake.
 """
@@ -38,7 +38,7 @@ class TestHandshakeInitMac1Verification(AbstractTestCase):
 
         try:
             sock.recvfrom(65535)
-            return self._fail(target, "Target responded to an initiation with invalid mac1 — should have been silently dropped")
+            return self._fail(target, "Target responded to an initiation with invalid mac1 , should have been silently dropped")
         except socket.timeout:
             pass  # expected: target dropped the packet
 

@@ -75,6 +75,8 @@ class AbstractTestCase(ABC):
         TestReport on failure/error so the caller can do:
             if report := self._verify_as_initiator(...): return report
         """
+        import time
+        time.sleep(5)
         sock = self._socks[0]
         self._drain(sock)
         session = self._new_session(target)
@@ -117,6 +119,8 @@ class AbstractTestCase(ABC):
         TestReport on failure/error so the caller can do:
             if report := self._verify_as_responder(...): return report
         """
+        import time
+        time.sleep(5)
         sock = self._socks[0]
         self._drain(sock)
         self._probe(target)

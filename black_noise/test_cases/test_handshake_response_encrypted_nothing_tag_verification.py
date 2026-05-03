@@ -67,7 +67,7 @@ class TestHandshakeResponseEncryptedNothingTagVerification(AbstractTestCase):
         sock.sendto(bytes(bad_response), target_addr)
 
         # Drain until timeout. Any transport packet means the target accepted the
-        # bad response — that is a failure.
+        # bad response , that is a failure.
         while True:
             try:
                 pkt_bytes, _ = sock.recvfrom(65535)

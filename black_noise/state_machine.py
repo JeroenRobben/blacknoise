@@ -199,6 +199,10 @@ class WgStateIdle(WgState):
         e_pub_i = wg_pkt.unencrypted_ephemeral
         self.session.peer_session_index = wg_pkt.sender_index
 
+        if calc_mac_1(wg_pkt, s_pub_r) != wg_pkt.mac1:
+            raise ValueError("Invalid mac1")
+        # print("Mac1 valid")
+
         if self.session.send_cookie and wg_pkt.mac2 == bytes(16):
             pkt_cookie, _ = create_cookie_reply(wg_pkt, s_pub_r)
             return self, pkt_cookie.payload
@@ -216,9 +220,6 @@ class WgStateIdle(WgState):
         s_pub_i = wg_aead_decrypt(k, 0, wg_pkt.encrypted_static, h_r)
 
         self.session.peer_public_key = s_pub_i
-        if calc_mac_1(wg_pkt, s_pub_r) != wg_pkt.mac1:
-            raise ValueError("Invalid mac1")
-        # print("Mac1 valid")
 
         q = self.session.preshared_symmetric_key
 

@@ -71,7 +71,7 @@ class TestRoamingDataInitiator(AbstractTestCase):
             sock1.settimeout(0.5)
             try:
                 sock1.recvfrom(65535)
-                return self._fail(target, "Target sent echo reply to server_physical_ip_1 instead of server_physical_ip_2 — roaming not supported")
+                return self._fail(target, "Target sent echo reply to server_physical_ip_1 instead of server_physical_ip_2 , roaming not supported")
             except socket.timeout:
                 return self._fail(target, "Did not receive echo reply on server_physical_ip_2 after sending data packet from it")
 

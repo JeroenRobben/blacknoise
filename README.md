@@ -14,10 +14,10 @@ Testing is black-box: the framework behaves as a WireGuard peer and bugs are det
 uv sync
 
 # Run tests against a target
-sudo uv run run_tests.py wireguard-go-docker-hardcoded-endpoint
+sudo uv run run_tests.py wireguard-go-docker
 ```
 
-The framework itself does not require special privileges, but `reset.sh` often does — for example to configure network interfaces or manage containers. Running with `sudo` ensures `reset.sh` has the necessary permissions.
+The framework itself does not require special privileges, but `reset.sh` often does, for example, to configure network interfaces or manage containers. Running with `sudo` ensures `reset.sh` has the necessary permissions.
 
 ---
 
@@ -45,7 +45,7 @@ The target must run a UDP echo service that:
 - Listens on **all interfaces** (`target_physical_ip`, `target_wg_ip` and `localhost`) on `echo_port`
 - Echoes every received UDP packet back to `server_wg_ip:echo_port` **through the WireGuard tunnel**
 
-The echo service always replies via the tunnel regardless of which interface the probe arrived on. When the test host sends a probe to `target_physical_ip:echo_port` on the physical interface and no tunnel session exists yet, the target must establish a handshake in order to deliver the reply — this is the mechanism used to trigger the target to act as the WireGuard initiator.
+The echo service always replies via the tunnel regardless of which interface the probe arrived on. When the test host sends a probe to `target_physical_ip:echo_port` on the physical interface and no tunnel session exists yet, the target must establish a handshake in order to deliver the reply , this is the mechanism used to trigger the target to act as the WireGuard initiator.
 
 Ready-to-use implementations are in `targets/shared/` (`udp_echo.c` for Linux/BSD, `udp_echo.ps1` for Windows).
 
@@ -53,10 +53,10 @@ Ready-to-use implementations are in `targets/shared/` (`udp_echo.c` for Linux/BS
 
 1. Create `targets/<name>/` and copy an existing `target.py` as a starting point.
 2. Fill in `target.py` with the network addresses, ports, and key pairs for the target.
-3. Write `reset.sh` — it must reset the existing WireGuard configuration, ensure the echo service is running, and exit 0 on success. Two common approaches:
+3. Write `reset.sh` , it must reset the existing WireGuard configuration, ensure the echo service is running, and exit 0 on success. Two common approaches:
    - **VM snapshots**: take a snapshot after applying the WireGuard configuration from `target.py` and starting the echo service, then have `reset.sh` restore that snapshot.
    - **Docker**: run the target in a container and have `reset.sh` restart it. See the existing Docker targets in `targets/` for examples.
-4. Optionally write `teardown.sh` — called once after all tests finish. Set `teardown_script` in `target.py` to point to it. Useful for stopping containers or other cleanup that should happen at the end.
+4. Optionally write `teardown.sh` , called once after all tests finish. Set `teardown_script` in `target.py` to point to it. Useful for stopping containers or other cleanup that should happen at the end.
 5. Run the tests: `sudo uv run run_tests.py <name>`.
 
 ---

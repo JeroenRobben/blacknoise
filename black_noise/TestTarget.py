@@ -36,6 +36,12 @@ class TestTarget:
                           to server_wg_ip through the WireGuard tunnel.
 
     preshared_key:        Optional 32-byte pre-shared key for the WireGuard session.
+
+    capture_interface:    Optional network interface name for tcpdump (e.g. "virbr1",
+                          "docker0"). Defaults to "any", which captures on all
+                          interfaces but produces duplicate packets when traffic
+                          crosses a bridge. Set this to a specific interface to
+                          avoid duplicates in pcap output.
     """
     name: str
     reset_script: str
@@ -56,4 +62,5 @@ class TestTarget:
 
     preshared_key: bytes | None = None
     teardown_script: str | None = None
+    capture_interface: str = "any"
 

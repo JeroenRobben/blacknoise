@@ -10,7 +10,7 @@ We act as the responder: we probe the target's echo service to trigger it to sen
 us a handshake initiation, then reply with a response built using a session
 constructed with a fabricated ephemeral keypair whose public half is the low-order
 point. handle_hs_initiation reads the ephemeral from the session, so the entire
-response — including encrypted_nothing — is derived from the bad ephemeral. mac1
+response , including encrypted_nothing , is derived from the bad ephemeral. mac1
 for a response is keyed on the initiator's static public key.
 
 A positive outcome is the target NOT sending transport data (type 4) after our
@@ -73,7 +73,7 @@ class TestHandshakeResponseEphemeralLowOrder(AbstractTestCase):
             reply = Wireguard(reply_bytes)
             if reply.message_type == 4:
                 return self._fail(target,
-                    "Target sent transport data after a response with a low-order ephemeral key (order 4) — "
+                    "Target sent transport data after a response with a low-order ephemeral key (order 4) , "
                     "should have been silently dropped")
         except socket.timeout:
             pass  # expected

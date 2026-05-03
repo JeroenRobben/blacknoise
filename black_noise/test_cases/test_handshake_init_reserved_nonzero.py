@@ -6,7 +6,7 @@ The WireGuard spec defines the first four bytes of every message as:
   u8  message_type
   u8  reserved[3]   (must be 0x00 0x00 0x00)
 
-A conformant implementation should ignore — or ideally reject — messages with
+A conformant implementation should ignore , or ideally reject , messages with
 non-zero reserved bytes. We test three variants:
 
   1. reserved = 0x01 0x00 0x00 (first byte non-zero)

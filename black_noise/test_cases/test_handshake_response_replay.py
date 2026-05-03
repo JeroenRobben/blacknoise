@@ -59,7 +59,7 @@ class TestHandshakeResponseReplay(AbstractTestCase):
             highest_counter = wg_pkt[WireguardTransport].counter
         result = session.handle_packet(wg_pkt)
         if result is None:
-            # Keepalive first — wait for the echo reply.
+            # Keepalive first , wait for the echo reply.
             try:
                 pkt_bytes, _ = sock.recvfrom(65535)
             except socket.timeout:
@@ -74,6 +74,8 @@ class TestHandshakeResponseReplay(AbstractTestCase):
 
         # Drain any stragglers before replaying.
         self._drain(sock)
+        import time
+        time.sleep(5)
 
         # Replay the handshake response, then probe to trigger a transport reply.
         # If the target reset its session the reply counter will be ≤ highest_counter.

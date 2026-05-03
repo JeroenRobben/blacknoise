@@ -50,7 +50,7 @@ class TestHandshakeResponseMac1Verification(AbstractTestCase):
         sock.sendto(bytes(bad_response), target_addr)
 
         # Drain packets for the timeout window. Any transport packet means the
-        # target accepted the bad response — that is a failure.
+        # target accepted the bad response , that is a failure.
         while True:
             try:
                 pkt_bytes, _ = sock.recvfrom(65535)
@@ -89,7 +89,7 @@ class TestHandshakeResponseMac1Verification(AbstractTestCase):
         first_result = session2.handle_packet(Wireguard(pkt_bytes))
 
         if first_result is None:
-            # Keepalive — wait for the echo reply.
+            # Keepalive , wait for the echo reply.
             try:
                 pkt_bytes, _ = sock.recvfrom(65535)
             except socket.timeout:

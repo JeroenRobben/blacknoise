@@ -14,7 +14,7 @@ Two bad ephemeral keys are tested:
 
 Each bad initiation is built using a session constructed with a fabricated
 ephemeral keypair whose public half is the bad key. This ensures the entire
-initiation — including encrypted_static and encrypted_timestamp — is derived
+initiation , including encrypted_static and encrypted_timestamp , is derived
 from the bad ephemeral, so the only valid rejection path is ephemeral key
 validation rather than a downstream AEAD tag failure.
 

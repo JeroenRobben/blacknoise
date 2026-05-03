@@ -18,7 +18,7 @@ from black_noise.AbstractTest import AbstractTestCase
 from black_noise.TestResult import TestReport
 from black_noise.TestTarget import TestTarget
 
-REKEY_TIMEOUT = 5.0   # seconds — WireGuard spec value
+REKEY_TIMEOUT = 5.0   # seconds , WireGuard spec value
 RECV_TIMEOUT = 20.0   # long enough to catch the retransmit after REKEY_TIMEOUT
 
 
@@ -64,10 +64,10 @@ class TestCookieResponder(AbstractTestCase):
             return self._fail(target, f"Expected retransmitted initiation, got {retransmit.payload.__class__.__name__}")
 
         if elapsed < REKEY_TIMEOUT:
-            return self._fail(target, f"Target retransmitted after only {elapsed:.2f}s — must wait at least {REKEY_TIMEOUT}s (REKEY_TIMEOUT)")
+            return self._fail(target, f"Target retransmitted after only {elapsed:.2f}s , must wait at least {REKEY_TIMEOUT}s (REKEY_TIMEOUT)")
 
         if retransmit.payload.mac2 == bytes(16):
-            return self._fail(target, "Retransmitted initiation has mac2=0 — target did not use the cookie")
+            return self._fail(target, "Retransmitted initiation has mac2=0 , target did not use the cookie")
 
         # Process the retransmit (state machine validates mac2 and returns handshake response).
         try:
@@ -90,7 +90,7 @@ class TestCookieResponder(AbstractTestCase):
         first_result = session.handle_packet(Wireguard(pkt_bytes))
 
         if first_result is None:
-            # Keepalive — wait for echo reply.
+            # Keepalive , wait for echo reply.
             try:
                 pkt_bytes, _ = sock.recvfrom(65535)
             except socket.timeout:

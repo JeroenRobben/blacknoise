@@ -9,12 +9,12 @@ comparison should be done on the raw bytes (big-endian) without normalization.
 If an implementation normalizes the nanoseconds field by carrying the overflow
 into the seconds field before storing (e.g. (T, 2_000_000_000) → (T+2, 0)),
 a subsequent initiation with timestamp (T+1, 0) will appear older than the
-stored value and be incorrectly rejected — even though (T+1, 0) is strictly
+stored value and be incorrectly rejected , even though (T+1, 0) is strictly
 greater than (T, 2_000_000_000) in raw big-endian byte order.
 
 Test sequence:
-  1. Send initiation with ts_base = (T, 0) — accepted, sets the stored timestamp.
-  2. Send initiation with ts_invalid = (T, 2_000_000_000) — ns = 2×10^9.
+  1. Send initiation with ts_base = (T, 0) , accepted, sets the stored timestamp.
+  2. Send initiation with ts_invalid = (T, 2_000_000_000) , ns = 2×10^9.
      - ts_invalid > ts_base in raw byte order (same seconds, larger nanoseconds).
      - If rejected: target validates the nanosecond range; no normalization bug
        is possible. Verify liveness and pass.

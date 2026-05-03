@@ -3,7 +3,7 @@ Test: verify that the target supports roaming for the cookie reply message.
 
 We act as the initiator. We send the handshake initiation from sock1 and receive
 the handshake response on sock1. Instead of completing the handshake we send a
-cookie reply from sock2 — the roam. The target must:
+cookie reply from sock2 , the roam. The target must:
   1. Stay silent (not resend the response) during the silence window.
   2. When we send a new initiation from sock2, reply with a response carrying
      a valid mac2 and send it to sock2 (target updated its endpoint).
@@ -55,7 +55,7 @@ class TestRoamingCookieInitiator(AbstractTestCase):
         cookie_reply_pkt, our_cookie = create_cookie_reply(response_pkt, session.server_public_key)
         sock2.sendto(bytes(cookie_reply_pkt), target_addr)
 
-        # Step 4: Wait — target must not send anything on either socket.
+        # Step 4: Wait , target must not send anything on either socket.
         # Drain both sockets for the full silence window using a simple poll loop.
         import time
         deadline = time.monotonic() + SILENCE_WINDOW
@@ -66,7 +66,7 @@ class TestRoamingCookieInitiator(AbstractTestCase):
                     pkt_bytes, _ = sock.recvfrom(65535)
                     pkt = Wireguard(pkt_bytes)
                     if isinstance(pkt.payload, WireguardResponse):
-                        return self._fail(target, f"Target resent handshake response to {label} after receiving cookie reply — should stay silent")
+                        return self._fail(target, f"Target resent handshake response to {label} after receiving cookie reply , should stay silent")
                     return self._fail(target, f"Target sent unexpected packet to {label} during silence window: {pkt.payload.__class__.__name__}")
                 except socket.timeout:
                     pass
