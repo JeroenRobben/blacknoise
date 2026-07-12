@@ -1,70 +1,69 @@
 # Message handling per message type
 
-> **Work in progress.** This document serves as a working note and is incomplete. It should not be relied upon when implementing WireGuard.
+> **Always refer to the WireGuard whitepaper, website and reference implementations when implementing WireGuard.**
+
+State and field names below match `state-machine.md` and `state_machine.py`.
 
 ## Receiving handshake initiation
 
-1. Verify `msg.mac1`
-2. If under load: verify `mac2`. If invalid: drop packet, return cookie reply
-3. Decrypt `msg.static`, verify (H_i)
-4. Lookup peer, drop packet if peer doesn't exist
-5. Decrypt `msg.timestamp`, verify (H_i)
-6. Check if timestamp value (\ge) last timestamp value for that peer. If true, update timestamp. If not, drop packet
-7. Update IP endpoint from peer using packet
-8. Create new session in `ResponseSent` state, send handshake response
+1. Verify `msg.mac1`. Drop if invalid.
+2. If under load: verify `msg.mac2`. If invalid: drop the packet and return a cookie reply.
+3. Mix `msg.ephemeral` into the running handshake hash, then decrypt `msg.static`, verifying the AEAD tag against the *current* `H_i` (i.e. `H_i` after `msg.ephemeral` has been hashed in but before `msg.static` has). Drop on failure.
+4. Look up the peer by the decrypted static public key. Drop if no peer matches.
+5. Mix `msg.static` into `H_i`, derive `κ`, and decrypt `msg.timestamp`, verifying the AEAD tag against the updated `H_i`. Drop on failure.
+6. Compare the decrypted timestamp as an opaque big-endian 96-bit value against the peer's `highest_tai64n`. If strictly greater, update `highest_tai64n`. Otherwise drop.
+7. Update the peer's `endpoint` to the source address of the received packet.
+8. Create a new session in `ResponseSent` state and install it as the peer's `next_session`. Send the handshake response.
+
+If the peer already has an `ActiveInitiator` or `ActiveResponder` session, it stays as `current_session` The new `ResponseSent` session occupies `next_session` and is promoted to `current_session` only on receipt of the first valid transport message under it.
 
 ## Receiving handshake response
 
-1. Verify `msg.mac1`
-2. If under load: verify `mac2`. If invalid: drop packet, return cookie reply
-3. Check if (I_i) matches secure session in `handshakeInitSent` state
-4. Verify `msg.empty`
-5. Update IP endpoint from peer using packet.
-6. Send queued data packet(s), or a keepalive. (Some implementations always send a keepalive first)
+1. Verify `msg.mac1`. Drop if invalid.
+2. If under load: verify `msg.mac2`. If invalid: drop the packet and return a cookie reply.
+3. Look up `msg.receiver` (`I_i`) and confirm it matches a session in `InitSent` state. Drop if no match.
+4. Verify the AEAD tag on `msg.empty`. Drop on failure.
+4. Derive `T_send_i` and `T_recv_i`.
+5. Update the peer's `endpoint` to the source address of the received packet.
+6. Promote the session to `ActiveInitiator` and install it as `current_session`, rotating the previous `current_session` into `previous_session`.
+7. Send any queued data packets, or a keepalive if there are none.
 
-## Receiving cookie reply message
+## Receiving cookie reply
 
-1. Lookup if Receiver index matches secure session in `initSent` or `reponseSent` state, drop packet if not
-2. Decrypt / authenticate encrypted cookie
-3. Check if cookie correctly authenticates `mac1` from message that triggered the cookie
-4. ??Update IP endpoint from peer using packet. -> "Official" WireGuard implementations seem to not update the peers endpoint from cookie replies, but process them nevertheless
-5. Store cookie value, start `expireCookieForPeer` timer (or use some other mechanism to keep track of how long this cookie should be used for calculating mac2)
-    
+1. Look up `msg.receiver` and confirm it matches a session in `InitSent` or `ResponseSent` state. Drop if no match.
+2. Decrypt and authenticate the encrypted cookie, with the `mac1` of the message that triggered the cookie as the AEAD additional authenticated data. Drop on failure.
+3. Store the cookie value and current time as the peer's `cookie` / `cookie_received_at`. The cookie is treated as expired after 120 s.
+4. Do **not** update the peer's `endpoint` from a cookie reply, and do **not** retransmit the previously sent handshake message. The next handshake retransmission, driven by `retransmitHandshake`, will incorporate the cookie via `mac2` (whitepaper §6.6).
 
-Receiving (+ handling) cookies in `responseSent` state (thus cookies sent by the initiator) is not explicitly described in the white paper.
+The cookie-reply-in-`ResponseSent` flow (cookies sent by the initiator to the responder) is not explicitly described in the whitepaper but follows symmetrically from the message format.
 
-## Receiving data packet
+## Receiving transport data packet
 
-1. UDP transport data packet is received.
-2. Validate packet , drop packet if invalid:
-    - Associated with secure session?
-    - Message counter valid?
-    - Authentication and decryption successful with session's receiving symmetric key?
-3. Validate session , drop packet if invalid:
-    - Session's receive counter < `RejectAfterMessages`
-    - `SessionAge` < `RejectAfterTime`
-4. Update timers:
-    - Restart `sendKeepalive` timer.
-5. If session = initiator **and**  
-    `SessionAge` >= `RejectAfterTime` - `KeepAliveTimeout` - `RekeyTimeout`:
-    - Initiate new handshake.
-6. Cryptokey routing table check:
-    - Is inner packet a valid IP packet?
-    - Does the source IP of the inner packet route correctly according to this peer's cryptokey routing table?
-7. Update IP endpoint from peer using packet.
-8. Accept packet.
-    
+1. Look up the message's `receiver` index. Drop if it does not match `previous_session`, `current_session`, or `next_session` for any peer.
+2. Validate the message:
+   - Counter is within the receive window of the matched session.
+   - AEAD authentication and decryption succeed with the session's `T_recv`.
+3. Validate the matched session:
+   - Receive counter < `RejectAfterMessages`.
+   - `SessionAge < RejectAfterTime`.
+4. Update the receive window for this counter.
+5. If the matched session is `next_session`, rotate: `current -> previous`, `next -> current`, zero the old `previous`.
+6. Restart `sendKeepalive` timer.
+7. If the local peer is the session's initiator and `SessionAge ≥ RejectAfterTime − KeepAliveTimeout − RekeyTimeout`: initiate a new handshake (opportunistic rekey on receive path).
+8. Cryptokey-routing check on the decrypted inner packet:
+   - Verify it is a valid IP packet.
+   - Verify the inner packet's **source** address lies within this peer's configured `AllowedIPs`. Drop otherwise.
+9. Update the peer's `endpoint` to the source of the outer UDP packet.
+10. Deliver the inner packet to the network stack.
 
-## Sending data packet
+## Sending transport data packet
 
 1. Plaintext packet reaches `wg0`.
-2. Destination IP is checked to find the matching peer in the cryptokey routing table.
-3. Find session associated with peer:
-    - If no session is found, or (`SessionAge` >= `RejectAfterTime`: initiate handshake and queue packet.
-    - If handshake process is ongoing: restart `retransmitHandshakeMaxAttempts` timer.
-4. If session = initiator **and** (`SessionAge` >= `RekeyAfterTime`:
-    - Initiate new handshake.
-5. Update timers:
-    - Restart `initiateNewHandshakeIfPeerUnresponsive` timer.
-6. Zero pad packet payload to a multiple of 16 bytes, create WireGuard packet.
-7. Transmit packet.
+2. Look up the destination IP in the cryptokey routing table to find the matching peer. If no peer matches: drop, send ICMP no-route-to-host, and return `-ENOKEY`.
+3. Find the session for that peer:
+   - If no `current_session`, or `SessionAge ≥ RejectAfterTime`, or messages-sent ≥ `RejectAfterMessages`: queue the packet, initiate a new handshake, return.
+   - If a handshake is already in progress: queue the packet and reset the `RekeyAttemptTime` deadline for this peer (the user explicitly attempting to send transport data is the reset condition for `retransmitHandshakeMaxAttempts`).
+4. If the local peer is the initiator and either `SessionAge ≥ RekeyAfterTime` or messages-sent ≥ `RekeyAfterMessages`: initiate a new handshake (alongside continuing to send under the current session).
+5. Cancel `sendKeepalive`; restart `initiateNewHandshakeIfPeerUnresponsive`.
+6. Zero-pad the packet payload to a multiple of 16 bytes, encrypt with `T_send` and the next `sendCounter`, increment `sendCounter`.
+7. Encapsulate and transmit.

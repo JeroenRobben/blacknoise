@@ -1,6 +1,6 @@
 # WireGuard State Machine
 
-> **Work in progress.** This document serves as working note and is incomplete. It should not be relied upon when implementing WireGuard.
+> **Always refer to the WireGuard whitepaper, website and reference implementations when implementing WireGuard.**
 
 The aim here is to define a complete operational state machine for WireGuard implementations. Currently, only the state machine of a single secure session is described.
 
@@ -26,7 +26,7 @@ The aim here is to define a complete operational state machine for WireGuard imp
 
 ## Notes
 
-- Sending cookie replies in initSent state (as an answer to a handshake response) is not explicitly described in the whitepaper. There should never be an immediate handshake retransmission when receiving a cookie reply (to not have a vector for amplification attacks I guess)?
+- Sending cookie replies in initSent state (as an answer to a handshake response) is not explicitly described in the whitepaper. There should never be an immediate handshake retransmission when receiving a cookie reply.
 - Implementations should take care to reject handshake response replays in activeInitiator state.
 
 ```

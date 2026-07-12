@@ -1,6 +1,6 @@
 # Timers
 
-> **Work in progress.** This document serves as a working note and is incomplete. It should not be relied upon when implementing WireGuard.
+> **Always refer to the WireGuard whitepaper, website and reference implementations when implementing WireGuard.**
 
 ## Initiator-only timers
 
