@@ -1,9 +1,6 @@
 # blacknoise
 
-> **Work in progress.**
-
-A framework for security testing of [WireGuard](https://www.wireguard.com/papers/wireguard.pdf) implementations.
-Testing is black-box: the framework behaves as a WireGuard peer and bugs are detected solely from the packets sent back by the implementation under test, or the absence thereof.
+A framework for black-box security testing of [WireGuard](https://www.wireguard.com/papers/wireguard.pdf) implementations. Individual test cases are in [test_cases/](black_noise/test_cases). See also the [paper](https://papers.mathyvanhoef.com/esorics2026.pdf). 
 
 ---
 
@@ -58,19 +55,3 @@ Ready-to-use implementations are in `targets/shared/` (`udp_echo.c` for Linux/BS
    - **Docker**: run the target in a container and have `reset.sh` restart it. See the existing Docker targets in `targets/` for examples.
 4. Optionally write `teardown.sh` , called once after all tests finish. Set `teardown_script` in `target.py` to point to it. Useful for stopping containers or other cleanup that should happen at the end.
 5. Run the tests: `sudo uv run run_tests.py <name>`.
-
----
-
-
-## Architecture
-
-### Key modules
-
-| Module | Purpose                                                                                                                                                                                |
-|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `primitives.py` | Low-level operations and cryptographic primitives as defined in the [WireGuard whitepaper](https://www.wireguard.com/papers/wireguard.pdf), using the same naming as in the whitepaper |
-| `state_machine.py` | WireGuard state machine and packet handling for a single _secure session_                                                                                                              |
-| `AbstractTest.py` | Base class for test cases; provides helpers for sending/receiving handshake and transport packets                                                                                      |
-| `TestTarget.py` | Dataclass describing the target and test host configuration                                                                                                                            |
-| `TestRunner.py` | Runs the test suite: calls `reset.sh` before each test, executes all tests, collects results, calls `teardown.sh` at the end                                                          |
-| `test_cases/` | Individual test case implementations                                                                                                                                                   |
